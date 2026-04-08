@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>视力分级预测计算器 - 四距离联合评估</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+        }
+        body {
+            background: linear-gradient(135deg, #e0f0f7 0%, #d0e6f0 100%);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .container {
+            max-width: 900px;
+            width: 100%;
+            background: white;
+            border-radius: 32px;
+            box-shadow: 0 25px 45px -12px rgba(0,0,0,0.25);
+            overflow: hidden;
+            padding: 28px 30px 36px;
+            transition: all 0.2s;
+        }
+        h1 {
+            font-size: 1.9rem;
+            margin: 0 0 6px 0;
+            color: #1a3e50;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .sub {
+            color: #4a6272;
+            border-left: 4px solid #2c7da0;
+            padding-left: 14px;
+            margin: 8px 0 24px 0;
+            font-size: 0.9rem;
+            font-weight: 450;
+        }
+        .input-grid {
+            background: #f4fafe;
+            border-radius: 28px;
+            padding: 20px 24px;
+            margin-bottom: 28px;
+            border: 1px solid #cde3ef;
+        }
+        .input-row {
+            margin-bottom: 16px;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 10px;
+        }
+        .input-row label {
+            font-weight: 600;
+            color: #1f5068;
+            width: 130px;
+            font-size: 0.95rem;
+        }
+        .input-row input {
+            flex: 1;
+            min-width: 160px;
+            padding: 10px 15px;
+            border-radius: 40px;
+            border: 1px solid #c2d6e2;
+            background: white;
+            font-size: 0.95rem;
+            transition: 0.15s;
+        }
+        .input-row input:focus {
+            border-color: #2c7da0;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(44,125,160,0.2);
+        }
+        .button-group {
+            display: flex;
+            gap: 15px;
+            margin: 8px 0 18px;
+        }
+        .button-group button {
+            flex: 1;
+            background: #2c7da0;
+            color: white;
+            border: none;
+            font-size: 1.05rem;
+            font-weight: 600;
+            padding: 12px 20px;
+            border-radius: 60px;
+            cursor: pointer;
+            transition: 0.15s;
+            box-shadow: 0 3px 8px rgba(0,0,0,0.1);
+        }
+        .button-group button:hover {
+            transform: scale(0.98);
+        }
+        .button-group button:first-child {
+            background: #2c7da0;
+        }
+        .button-group button:first-child:hover {
+            background: #1f5e7a;
+        }
+        .button-group button:last-child {
+            background: #7f8c8d;
+        }
+        .button-group button:last-child:hover {
+            background: #5d6e6f;
+        }
+        .results-container {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            margin-top: 10px;
+        }
+        .result-card {
+            background: #fefefe;
+            border-radius: 24px;
+            padding: 12px 20px;
+            border-left: 6px solid;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+            transition: 0.1s;
+        }
+        .result-card h3 {
+            margin: 6px 0 10px 0;
+            font-size: 1.2rem;
+            font-weight: 700;
+        }
+        .prob-badge {
+            display: inline-block;
+            background: #eef2f7;
+            padding: 5px 12px;
+            border-radius: 40px;
+            margin: 4px 6px 4px 0;
+            font-size: 0.9rem;
+        }
+        .prob-value {
+            font-weight: 800;
+            font-size: 1.1rem;
+            color: #1f5e7a;
+        }
+        .footer-note {
+            font-size: 0.7rem;
+            text-align: center;
+            color: #6b8ea0;
+            margin-top: 26px;
+            padding-top: 14px;
+            border-top: 1px solid #d4e2ec;
+        }
+        hr {
+            margin: 8px 0;
+            border-color: #e2edf2;
+        }
+        @media (max-width: 650px) {
+            .container { padding: 20px; }
+            .input-row { flex-direction: column; align-items: flex-start; }
+            .input-row label { width: auto; }
+            .button-group { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>👁️ 视力分级预测</h1>
+    <div class="sub">基于有序/二分类Logistic回归 · 同时评估30/40/60/80cm裸眼视力</div>
+
+    <div class="input-grid">
+        <div class="input-row"><label>🎂 年龄 (岁)</label><input type="number" step="any" id="age" placeholder="例如 28"></div>
+        <div class="input-row"><label>📐 眼轴 (mm)</label><input type="number" step="any" id="al" placeholder="例如 24.12"></div>
+        <div class="input-row"><label>🔘 Km (角膜曲率)</label><input type="number" step="any" id="km" placeholder="例如 43.2"></div>
+        <div class="input-row"><label>👁️ WTW (mm)</label><input type="number" step="any" id="wtw" placeholder="例如 11.8"></div>
+        <div class="input-row"><label>⚫ 瞳孔直径 (mm)</label><input type="number" step="any" id="pupil" placeholder="例如 3.5"></div>
+    </div>
+
+    <div class="button-group">
+        <button id="calcBtn">✨ 计算所有距离的视力概率</button>
+        <button id="clearBtn">🗑️ 清空所有数据</button>
+    </div>
+
+    <div id="resultsArea">
+        <div class="results-container">
+            <div class="result-card" style="border-left-color: #4f9da6;"><h3>📏 30cm 裸眼视力</h3><p>等待输入数据...</p></div>
+            <div class="result-card" style="border-left-color: #5f8ab6;"><h3>📏 40cm 裸眼视力</h3><p>等待输入数据...</p></div>
+            <div class="result-card" style="border-left-color: #7c9c7e;"><h3>📏 60cm 裸眼视力</h3><p>等待输入数据...</p></div>
+            <div class="result-card" style="border-left-color: #b58c5d;"><h3>📏 80cm 裸眼视力</h3><p>等待输入数据...</p></div>
+        </div>
+    </div>
+    <div class="footer-note">
+        ⚠️ 模型系数来源于临床统计，仅供科研参考，不可替代医生诊断。轴率比 = 眼轴 × Km / 337.5 自动计算。
+    </div>
+</div>
+
+<script>
+    // ---------- 系数定义 (严格遵循python修正版) ----------
+    // 30cm (有序 logistic, 三分类)
+    const COEF_30 = { al: -0.865, wtw: 1.213, th1: -7.982, th2: -5.023 };
+    // 40cm
+    const COEF_40 = { al: -0.898, wtw: 1.277, th1: -9.379, th2: -5.907 };
+    // 60cm (二分类: 中等/较好)
+    const COEF_60 = { constant: 54.127, age: -0.075, al: -0.985, pupil: -1.204, km: -0.469 };
+    // 80cm (二分类, 使用轴率比)
+    const COEF_80 = { constant: 19.387, axial_ratio: -5.639 };
+
+    // 计算轴率比: 眼轴 * Km / 337.5
+    function calcAxialRatio(al, km) {
+        return al * km / 337.5;
+    }
+
+    // 通用 logistic 函数
+    function logistic(x) {
+        return 1 / (1 + Math.exp(-x));
+    }
+
+    // 30cm 计算 (三分类)
+    function compute30(al, wtw) {
+        const L = COEF_30.al * al + COEF_30.wtw * wtw;
+        const p1 = logistic(COEF_30.th1 - L);
+        const p2 = logistic(COEF_30.th2 - L);
+        const p_worst = p1;
+        const p_middle = p2 - p1;
+        const p_better = 1 - p2;
+        return { worst: p_worst, middle: p_middle, better: p_better };
+    }
+
+    // 40cm 计算
+    function compute40(al, wtw) {
+        const L = COEF_40.al * al + COEF_40.wtw * wtw;
+        const p1 = logistic(COEF_40.th1 - L);
+        const p2 = logistic(COEF_40.th2 - L);
+        const p_worst = p1;
+        const p_middle = p2 - p1;
+        const p_better = 1 - p2;
+        return { worst: p_worst, middle: p_middle, better: p_better };
+    }
+
+    // 60cm 二分类: 中等 / 较好 (较好 = p_value)
+    function compute60(age, al, pupil, km) {
+        const L = COEF_60.constant + COEF_60.age * age + COEF_60.al * al + COEF_60.pupil * pupil + km * COEF_60.km;
+        const p_better = logistic(L);
+        const p_mid = 1 - p_better;
+        return { mid: p_mid, better: p_better };
+    }
+
+    // 80cm 二分类: 中等 / 较好 (需要轴率比)
+    function compute80(axialRatio) {
+        const L = COEF_80.constant + COEF_80.axial_ratio * axialRatio;
+        const p_better = logistic(L);
+        const p_mid = 1 - p_better;
+        return { mid: p_mid, better: p_better };
+    }
+
+    // 格式化百分比
+    function percent(p) {
+        return (p * 100).toFixed(2) + '%';
+    }
+
+    // 清空所有输入框
+    function clearAllInputs() {
+        document.getElementById('age').value = '';
+        document.getElementById('al').value = '';
+        document.getElementById('km').value = '';
+        document.getElementById('wtw').value = '';
+        document.getElementById('pupil').value = '';
+        
+        // 重置结果显示为初始状态
+        const cards = document.querySelectorAll('.result-card');
+        if (cards.length >= 4) {
+            cards[0].innerHTML = '<h3>📏 30cm 裸眼视力</h3><p>等待输入数据...</p>';
+            cards[1].innerHTML = '<h3>📏 40cm 裸眼视力</h3><p>等待输入数据...</p>';
+            cards[2].innerHTML = '<h3>📏 60cm 裸眼视力</h3><p>等待输入数据...</p>';
+            cards[3].innerHTML = '<h3>📏 80cm 裸眼视力</h3><p>等待输入数据...</p>';
+        }
+    }
+
+    // 主计算与渲染
+    function runCalculation() {
+        // 获取输入 (按新顺序)
+        const age = parseFloat(document.getElementById('age').value);
+        const al = parseFloat(document.getElementById('al').value);
+        const km = parseFloat(document.getElementById('km').value);
+        const wtw = parseFloat(document.getElementById('wtw').value);
+        const pupil = parseFloat(document.getElementById('pupil').value);
+
+        if (isNaN(age) || isNaN(al) || isNaN(km) || isNaN(wtw) || isNaN(pupil)) {
+            alert('请完整填写所有数值（年龄、眼轴、Km、WTW、瞳孔直径）');
+            return;
+        }
+
+        // 轴率比
+        const axialRatio = calcAxialRatio(al, km);
+
+        // 计算各个距离
+        const res30 = compute30(al, wtw);
+        const res40 = compute40(al, wtw);
+        const res60 = compute60(age, al, pupil, km);
+        const res80 = compute80(axialRatio);
+
+        // 渲染 HTML
+        const html30 = `<p>
+            <span class="prob-badge">😞 较差</span> <strong class="prob-value">${percent(res30.worst)}</strong> &nbsp;|&nbsp;
+            <span class="prob-badge">😐 中等</span> <strong class="prob-value">${percent(res30.middle)}</strong> &nbsp;|&nbsp;
+            <span class="prob-badge">😊 较好</span> <strong class="prob-value">${percent(res30.better)}</strong>
+        </p>`;
+
+        const html40 = `<p>
+            <span class="prob-badge">😞 较差</span> <strong class="prob-value">${percent(res40.worst)}</strong> &nbsp;|&nbsp;
+            <span class="prob-badge">😐 中等</span> <strong class="prob-value">${percent(res40.middle)}</strong> &nbsp;|&nbsp;
+            <span class="prob-badge">😊 较好</span> <strong class="prob-value">${percent(res40.better)}</strong>
+        </p>`;
+
+        const html60 = `<p>
+            <span class="prob-badge">😐 中等</span> <strong class="prob-value">${percent(res60.mid)}</strong> &nbsp;|&nbsp;
+            <span class="prob-badge">😊 较好</span> <strong class="prob-value">${percent(res60.better)}</strong>
+        </p>`;
+
+        const html80 = `<p>
+            <span class="prob-badge">😐 中等</span> <strong class="prob-value">${percent(res80.mid)}</strong> &nbsp;|&nbsp;
+            <span class="prob-badge">😊 较好</span> <strong class="prob-value">${percent(res80.better)}</strong>
+        </p>`;
+
+        // 更新页面
+        const cards = document.querySelectorAll('.result-card');
+        if (cards.length >= 4) {
+            cards[0].innerHTML = `<h3>📏 30cm 裸眼视力</h3>${html30}`;
+            cards[1].innerHTML = `<h3>📏 40cm 裸眼视力</h3>${html40}`;
+            cards[2].innerHTML = `<h3>📏 60cm 裸眼视力</h3>${html60}`;
+            cards[3].innerHTML = `<h3>📏 80cm 裸眼视力</h3>${html80}`;
+        }
+    }
+
+    // 绑定按钮事件
+    document.getElementById('calcBtn').addEventListener('click', runCalculation);
+    document.getElementById('clearBtn').addEventListener('click', clearAllInputs);
+</script>
+</body>
+</html>
